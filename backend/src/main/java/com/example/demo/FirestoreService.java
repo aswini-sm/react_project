@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class FirestoreService {
@@ -40,7 +41,9 @@ public class FirestoreService {
                 documentId);
 
         // Asynchronously write data to Firestore
-        ApiFuture<WriteResult> collectionsApiFuture = db.collection(collectionName).document(documentId).set(data);
+        ApiFuture<WriteResult> collectionsApiFuture = db.collection(Objects.requireNonNull(collectionName, "collectionName must not be null"))
+                .document(Objects.requireNonNull(documentId, "documentId must not be null"))
+                .set(Objects.requireNonNull(data, "data must not be null"));
 
         // future.get() blocks on response
         String updateTime = collectionsApiFuture.get().getUpdateTime().toString();

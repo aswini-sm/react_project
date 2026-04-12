@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -25,7 +26,7 @@ public class StudentService {
 
     public List<Student> getAllStudents() throws ExecutionException, InterruptedException {
         Firestore db = getFirestore();
-        ApiFuture<QuerySnapshot> future = db.collection(COLLECTION_NAME).get();
+        ApiFuture<QuerySnapshot> future = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null")).get();
         
         List<Student> students = new ArrayList<>();
         // future.get() blocks on completion
@@ -37,7 +38,8 @@ public class StudentService {
 
     public Student getStudentById(Integer id) throws ExecutionException, InterruptedException {
         Firestore db = getFirestore();
-        DocumentReference docRef = db.collection(COLLECTION_NAME).document(String.valueOf(id));
+        DocumentReference docRef = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null"))
+                .document(Objects.requireNonNull(String.valueOf(id), "id cannot be null"));
         ApiFuture<DocumentSnapshot> future = docRef.get();
         DocumentSnapshot document = future.get();
         
@@ -53,16 +55,17 @@ public class StudentService {
             student.setId((int) (System.currentTimeMillis() & 0xfffffff));
         }
         Firestore db = getFirestore();
-        ApiFuture<WriteResult> collectionsApiFuture = db.collection(COLLECTION_NAME)
-                .document(String.valueOf(student.getId()))
-                .set(student);
+        ApiFuture<WriteResult> collectionsApiFuture = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null"))
+                .document(Objects.requireNonNull(String.valueOf(student.getId()), "student ID cannot be null"))
+                .set(Objects.requireNonNull(student, "student cannot be null"));
         
         return collectionsApiFuture.get().getUpdateTime().toString();
     }
 
     public String updateStudent(Integer id, Student studentUpdates) throws ExecutionException, InterruptedException {
         Firestore db = getFirestore();
-        DocumentReference docRef = db.collection(COLLECTION_NAME).document(String.valueOf(id));
+        DocumentReference docRef = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null"))
+                .document(Objects.requireNonNull(String.valueOf(id), "id cannot be null"));
         
         // Fetch existing first to ensure it's a partial update (optional depending on needs, but useful to preserve fields)
         ApiFuture<DocumentSnapshot> future = docRef.get();
@@ -83,7 +86,8 @@ public class StudentService {
 
     public String updateStudentStatus(Integer id, String newStatus) throws ExecutionException, InterruptedException {
         Firestore db = getFirestore();
-        DocumentReference docRef = db.collection(COLLECTION_NAME).document(String.valueOf(id));
+        DocumentReference docRef = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null"))
+                .document(Objects.requireNonNull(String.valueOf(id), "id cannot be null"));
         
         // 🛠️ Debug Verification: Check if document actually exists first
         DocumentSnapshot snapshot = docRef.get().get();
@@ -98,7 +102,8 @@ public class StudentService {
 
     public String deleteStudent(Integer id) throws ExecutionException, InterruptedException {
         Firestore db = getFirestore();
-        ApiFuture<WriteResult> writeResult = db.collection(COLLECTION_NAME).document(String.valueOf(id)).delete();
+        ApiFuture<WriteResult> writeResult = db.collection(Objects.requireNonNull(COLLECTION_NAME, "collection name cannot be null"))
+                .document(Objects.requireNonNull(String.valueOf(id), "id cannot be null")).delete();
         return writeResult.get().getUpdateTime().toString();
     }
 }
