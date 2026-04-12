@@ -1,0 +1,13 @@
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\test
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\resources
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example\demo
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example\demo\DemoApplication.java
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example\demo\Student.java
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example\demo\StudentController.java
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\java\com\example\demo\StudentRepository.java
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\main\resources\application.properties
+C:\Users\aswini m\Desktop\smartattend_spring_full\backend\src\test\java
