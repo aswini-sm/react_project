@@ -41,7 +41,7 @@ function App() {
 
     try {
       setLoading(true);
-      await axios.post(`${BASE_URL}/api/students`, 
+      await axios.post(`${BASE_URL}/students`, 
         { name, status: "Present" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -65,7 +65,7 @@ function App() {
     if (!token) return;
     try {
       setLoading(true);
-      const response = await axios.get(`${BASE_URL}/api/students`, {
+      const response = await axios.get(`${BASE_URL}/students`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setStudents(response.data);
@@ -90,7 +90,7 @@ function App() {
       // Optimistic UI update (Instant feedback to user)
       setStudents(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
 
-      const response = await axios.put(`${BASE_URL}/api/students/${id}/status`, 
+      const response = await axios.put(`${BASE_URL}/students/${id}/status`, 
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
