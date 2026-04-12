@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
+import axios from "axios";
 import Login from "./Login";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { fetchAllStudents, createStudent, updateStudentStatus } from "./api";
+
+const BASE_URL = "https://react-project-5-nl1p.onrender.com";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -39,7 +41,10 @@ function App() {
 
     try {
       setLoading(true);
-      await createStudent(name, token);
+      await axios.post(`${BASE_URL}/api/students`, 
+        { name, status: "Present" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setName("");
       fetchStudents(); // Refresh the list after adding
     } catch (err) {
@@ -60,8 +65,10 @@ function App() {
     if (!token) return;
     try {
       setLoading(true);
-      const data = await fetchAllStudents(token);
-      setStudents(data);
+      const response = await axios.get(`${BASE_URL}/api/students`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStudents(response.data);
     } catch (err) {
       console.error("GET ERROR:", err);
       if (err.response && err.response.status === 401) {
@@ -79,18 +86,16 @@ function App() {
 
     const newStatus = currentStatus === "Present" ? "Absent" : "Present";
 
-    console.log("\n--- [FRONTEND DEBUG] SENDING UPDATE ---");
-    console.log("Target Document ID:", id);
-    console.log("New Status to send:", newStatus);
-
     try {
       // Optimistic UI update (Instant feedback to user)
       setStudents(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
 
-      const data = await updateStudentStatus(id, newStatus, token);
+      const response = await axios.put(`${BASE_URL}/api/students/${id}/status`, 
+        { status: newStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      console.log("✅ API SUCCESS RESPONSE:", data);
-      console.log("---------------------------------------\n");
+      console.log("✅ API SUCCESS RESPONSE:", response.data);
     } catch (err) {
       console.error("❌ PUT ERROR:", err);
       console.error("Failed Response Data:", err.response?.data);
