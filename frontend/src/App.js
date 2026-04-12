@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Login from "./Login";
 import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -56,7 +56,7 @@ function App() {
   };
 
   // Fetch all students
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     if (!token) return;
     try {
       setLoading(true);
@@ -72,7 +72,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
   // Toggle student presence status safely over Firebase Auth
   const toggleAttendance = async (id, currentStatus) => {
     if (!token) return alert("You must be logged in to update a student.");
@@ -110,7 +110,7 @@ function App() {
     if (user && token) {
       fetchStudents();
     }
-  }, [user, token]);
+  }, [user, token, fetchStudents]);
 
   // If no user is logged in, show Login Screen
   if (!user) {
