@@ -13,10 +13,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@CrossOrigin("*")
+@CrossOrigin(origins = "*", allowedHeaders = "*", methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
+        RequestMethod.DELETE, RequestMethod.OPTIONS })
 @RequestMapping("/students")
 public class StudentController {
 
@@ -80,7 +82,7 @@ public class StudentController {
     @PutMapping("/{id}/status")
     public ResponseEntity<String> updateStatus(@PathVariable Integer id, @RequestBody StatusUpdateRequest payload) {
         String newStatus = payload.getStatus();
-        
+
         System.out.println("\n--- [DEBUG] UPDATE REQUEST RECEIVED ---");
         System.out.println("ID Received: " + id);
         System.out.println("Status Received: " + newStatus);
@@ -89,7 +91,7 @@ public class StudentController {
             System.err.println("❌ ERROR: Missing ID or status value from frontend.");
             return ResponseEntity.badRequest().body("ID and valid status string are required");
         }
-        
+
         try {
             String updateTime = studentService.updateStudentStatus(id, newStatus);
             System.out.println("✅ SUCCESS: Document updated in Firestore at: " + updateTime);

@@ -20,6 +20,11 @@ public class TestController {
         this.firestoreService = firestoreService;
     }
 
+    @GetMapping("/")
+    public ResponseEntity<String> root() {
+        return ResponseEntity.ok("Backend is running successfully! 🔥");
+    }
+
     @GetMapping("/test-firestore")
     public ResponseEntity<String> testFirestore() {
         try {
