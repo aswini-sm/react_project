@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutionException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,7 +12,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,17 +26,19 @@ public class StudentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Student>> getAll() {
+    public ResponseEntity<?> getAll() {
         try {
             List<Student> students = studentService.getAllStudents();
             return ResponseEntity.ok(students);
-        } catch (InterruptedException | ExecutionException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("ERROR: " + e.getMessage());
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Student> getById(@PathVariable Integer id) {
+    public ResponseEntity<Student> getById(@PathVariable String id) {
         try {
             Student student = studentService.getStudentById(id);
             if (student != null) {
@@ -62,9 +62,9 @@ public class StudentController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<String> update(@PathVariable Integer id, @RequestBody Student s) {
-        if (id == null) {
-            return ResponseEntity.badRequest().body("ID cannot be null");
+    public ResponseEntity<String> update(@PathVariable String id, @RequestBody Student s) {
+        if (id == null || id.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body("ID cannot be empty");
         }
         try {
             String updateTime = studentService.updateStudent(id, s);
@@ -78,14 +78,14 @@ public class StudentController {
     }
 
     @PutMapping("/{id}/status")
-    public ResponseEntity<String> updateStatus(@PathVariable Integer id, @RequestBody StatusUpdateRequest payload) {
+    public ResponseEntity<String> updateStatus(@PathVariable String id, @RequestBody StatusUpdateRequest payload) {
         String newStatus = payload.getStatus();
 
         System.out.println("\n--- [DEBUG] UPDATE REQUEST RECEIVED ---");
         System.out.println("ID Received: " + id);
         System.out.println("Status Received: " + newStatus);
 
-        if (id == null || newStatus == null || newStatus.trim().isEmpty()) {
+        if (id == null || id.trim().isEmpty() || newStatus == null || newStatus.trim().isEmpty()) {
             System.err.println("❌ ERROR: Missing ID or status value from frontend.");
             return ResponseEntity.badRequest().body("ID and valid status string are required");
         }
@@ -108,7 +108,7 @@ public class StudentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> delete(@PathVariable Integer id) {
+    public ResponseEntity<String> delete(@PathVariable String id) {
         try {
             String updateTime = studentService.deleteStudent(id);
             return ResponseEntity.ok("Student deleted at: " + updateTime);

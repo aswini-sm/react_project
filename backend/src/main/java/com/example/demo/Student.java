@@ -4,14 +4,9 @@ import java.util.Date;
 
 public class Student {
 
-    // Using object wrappers (Integer) instead of primitive (int) 
-    // prevents NullPointerExceptions if a document is missing this field.
-    private Integer id;
+    private String id;
     private String name;
-    private Integer age;
     private String status;
-    
-    // Firestore Timestamps cleanly map to java.util.Date
     private Date date;
 
     // 1️⃣ No-args constructor (Mandatory for Firestore deserialization)
@@ -19,20 +14,19 @@ public class Student {
     }
 
     // 2️⃣ All-args constructor (Optional, but convenient)
-    public Student(Integer id, String name, Integer age, String status, Date date) {
+    public Student(String id, String name, String status, Date date) {
         this.id = id;
         this.name = name;
-        this.age = age;
         this.status = status;
         this.date = date;
     }
 
     // 3️⃣ Getters and Setters
-    public Integer getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -42,14 +36,6 @@ public class Student {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public Integer getAge() {
-        return age; // If 'age' is missing in Firestore, this returns null instead of crashing
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
     }
 
     public String getStatus() {
