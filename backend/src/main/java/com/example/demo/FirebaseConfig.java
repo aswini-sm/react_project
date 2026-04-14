@@ -1,6 +1,7 @@
 package com.example.demo;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import org.springframework.context.annotation.Configuration;
@@ -29,12 +30,22 @@ public class FirebaseConfig {
                 InputStream serviceAccount = new ByteArrayInputStream(firebaseEnv.getBytes(StandardCharsets.UTF_8));
                 System.out.println("Loading Firebase credentials strictly from FIREBASE_CREDENTIAL_JSON environment variable.");
 
-                FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                        .build();
+                GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
+                
+                FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
+                        .setCredentials(credentials);
 
-                FirebaseApp.initializeApp(options);
-                System.out.println("Firebase Application has been initialized successfully!");
+                // 🔥 CRITICAL FIX: Explicitly set Project ID to prevent 502 Bad Gateway timeout hangs on Render
+                if (credentials instanceof ServiceAccountCredentials) {
+                    String projectId = ((ServiceAccountCredentials) credentials).getProjectId();
+                    if (projectId != null) {
+                        optionsBuilder.setProjectId(projectId);
+                        System.out.println("✅ Successfully extracted and set Firebase Project ID: " + projectId);
+                    }
+                }
+
+                FirebaseApp.initializeApp(optionsBuilder.build());
+                System.out.println("✅ Firebase Application has been initialized successfully!");
             }
         } catch (Exception e) {
             System.err.println("🔥 Error initializing Firebase: " + e.getMessage());
