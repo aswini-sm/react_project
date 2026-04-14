@@ -1,31 +1,40 @@
-import { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import React, { useEffect, useState, useCallback } from "react";
 import Login from "./Login";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+import './App.css';
 
-const BASE_URL = "https://react-project-5-nl1p.onrender.com";
+// Register ChartJS plugins
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 function App() {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-
-  // App core state
   const [students, setStudents] = useState([]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Monitor Firebase Auth State
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        // Retrieve Firebase ID token after login
-        const idToken = await currentUser.getIdToken(true);
-        setToken(idToken);
-      } else {
-        setToken(null);
-      }
     });
     return () => unsubscribe();
   }, []);
@@ -34,142 +43,207 @@ function App() {
     await signOut(auth);
   };
 
-  // Add a new student to Firestore via Spring Boot Backend
+  const computeColor = (percentage) => {
+    if (percentage >= 75) return "rgba(34, 197, 94, 0.8)"; // Green
+    if (percentage >= 50) return "rgba(249, 115, 22, 0.8)"; // Orange
+    return "rgba(239, 68, 68, 0.8)"; // Red
+  };
+
+  const getPercentage = (present, total) => {
+    return total === 0 ? 0 : Math.round((present / total) * 100);
+  };
+
+  const fetchStudents = useCallback(async () => {
+    if (!user) return;
+    try {
+      setLoading(true);
+      const querySnapshot = await getDocs(collection(db, "students"));
+      const studentsList = querySnapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        let p = data.totalpresent !== undefined ? data.totalpresent : (data.present || 0);
+        let t = data.totaldays !== undefined ? data.totaldays : (data.total || 0);
+
+        // Legacy normalization from old structure {status: "Present"/"Absent"}
+        if (data.status) {
+          if (data.status === "Present" && p === 0 && t === 0) {
+            p = 1; t = 1;
+          } else if (data.status === "Absent" && p === 0 && t === 0) {
+            p = 0; t = 1;
+          }
+        }
+        
+        return {
+          id: docSnap.id,
+          name: data.name,
+          present: p,
+          total: t,
+          percentage: getPercentage(p, t),
+        };
+      });
+      setStudents(studentsList);
+    } catch (err) {
+      console.error("GET ERROR:", err);
+      alert("Failed to fetch students. Check permissions.");
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
   const addStudent = async () => {
     if (!name.trim()) return alert("Enter a student name");
-    if (!token) return alert("You must be logged in to add a student.");
 
     try {
       setLoading(true);
-      await axios.post(`${BASE_URL}/students`, 
-        { name, status: "Present" },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await addDoc(collection(db, "students"), {
+        name,
+        totalpresent: 0,
+        totaldays: 0,
+        attendancepercent: "0%"
+      });
       setName("");
-      fetchStudents(); // Refresh the list after adding
+      fetchStudents();
     } catch (err) {
-      console.error("POST ERROR:", err);
-      // Helpful error alert for debugging
-      if (err.response && err.response.status === 401) {
-        alert("Unauthorized: Your Firebase token is invalid or expired.");
-      } else {
-        alert("Failed to add student. Check backend console logs.");
-      }
+      console.error("ADD ERROR:", err);
+      alert("Failed to add student.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch all students
-  const fetchStudents = useCallback(async () => {
-    if (!token) return;
+  const handleAttendance = async (student, isPresent) => {
     try {
-      setLoading(true);
-      const response = await axios.get(`${BASE_URL}/students`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const newPresent = student.present + (isPresent ? 1 : 0);
+      const newTotal = student.total + 1;
+      const newPercentage = getPercentage(newPresent, newTotal);
+      
+      // Optimistic UI Update
+      setStudents(prev => prev.map(s => 
+        s.id === student.id 
+          ? { ...s, present: newPresent, total: newTotal, percentage: newPercentage }
+          : s
+      ));
+
+      const docRef = doc(db, "students", student.id);
+      await updateDoc(docRef, {
+        totalpresent: newPresent,
+        totaldays: newTotal,
+        attendancepercent: newPercentage + "%"
       });
-      setStudents(response.data);
     } catch (err) {
-      console.error("GET ERROR:", err);
-      if (err.response && err.response.status === 401) {
-        alert("Unauthorized to fetch students.");
-      } else {
-        alert("Failed to fetch students. Check backend or network.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-  // Toggle student presence status safely over Firebase Auth
-  const toggleAttendance = async (id, currentStatus) => {
-    if (!token) return alert("You must be logged in to update a student.");
-
-    const newStatus = currentStatus === "Present" ? "Absent" : "Present";
-
-    try {
-      // Optimistic UI update (Instant feedback to user)
-      setStudents(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
-
-      const response = await axios.put(`${BASE_URL}/students/${id}/status`, 
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      console.log("✅ API SUCCESS RESPONSE:", response.data);
-    } catch (err) {
-      console.error("❌ PUT ERROR:", err);
-      console.error("Failed Response Data:", err.response?.data);
-
-      if (err.response && err.response.status === 401) {
-        alert("Unauthorized: Your Firebase token is invalid or expired.");
-      } else if (err.response && err.response.status === 404) {
-        alert(`Error 404: Document with ID ${id} was not found in Firestore!`);
-      } else {
-        alert("Failed to update status. Reverting changes.");
-      }
-      fetchStudents(); // Revert local state to truth on failure
+      console.error("UPDATE ERROR:", err);
+      alert("Failed to update attendance.");
+      // Revert optimism on error
+      fetchStudents();
     }
   };
 
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       fetchStudents();
     }
-  }, [user, token, fetchStudents]);
+  }, [user, fetchStudents]);
 
-  // If no user is logged in, show Login Screen
   if (!user) {
     return <Login />;
   }
 
-  // If logged in, show App
+  // Setup Chart Data
+  const chartData = {
+    labels: students.map(s => s.name),
+    datasets: [
+      {
+        label: 'Attendance %',
+        data: students.map(s => s.percentage),
+        backgroundColor: students.map(s => computeColor(s.percentage)),
+        borderRadius: 6,
+      }
+    ]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 100,
+        ticks: { stepSize: 20 }
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Student Attendance Overview' }
+    }
+  };
+
   return (
-    <div style={{ padding: "30px", fontFamily: "Arial" }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ textAlign: "center" }}>📚 SmartAttend</h1>
-        <button onClick={handleLogout} style={{ padding: '8px', background: 'red', color: 'white', border: 'none', borderRadius: '4px' }}>Logout</button>
-      </div>
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <h1>📊 SmartAttend Dashboard</h1>
+        <div className="user-controls">
+          <span className="user-email">{user.email}</span>
+          <button onClick={handleLogout} className="btn-logout">Logout</button>
+        </div>
+      </header>
 
-      <p style={{ textAlign: 'center', color: '#666' }}>Logged in as: {user.email}</p>
-
-      <div style={{ textAlign: "center", marginBottom: "20px" }}>
-        <input
-          value={name}
-          placeholder="Enter student name"
-          onChange={e => setName(e.target.value)}
-          style={{ padding: "10px", width: "200px" }}
-        />
-        <button
-          onClick={addStudent}
-          style={{ marginLeft: "10px", padding: "10px", background: "green", color: "white", border: "none" }}
-        >
-          Add
-        </button>
-      </div>
-
-      {loading ? <p style={{ textAlign: "center" }}>Loading students...</p> : null}
-
-      <div style={{ maxWidth: "500px", margin: "auto" }}>
-        {students.map(s => (
-          <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px", marginBottom: "10px", border: "1px solid #ccc", borderRadius: "8px" }}>
-            <span style={{ fontWeight: "bold" }}>{s.name}</span>
-            <span style={{ color: s.status === "Present" ? "green" : "red", fontWeight: "bold" }}>{s.status}</span>
-            <button
-              onClick={() => toggleAttendance(s.id, s.status)}
-              style={{
-                background: s.status === "Present" ? "orange" : "blue",
-                color: "white",
-                border: "none",
-                padding: "8px",
-                borderRadius: "4px",
-                cursor: "pointer"
-              }}
-            >
-              Mark {s.status === "Present" ? "Absent" : "Present"}
-            </button>
+      <main className="dashboard-content">
+        {/* Left Column: Student Management */}
+        <section className="student-management">
+          <div className="add-student-card">
+            <h2>Add New Student</h2>
+            <div className="input-group">
+              <input
+                value={name}
+                placeholder="Enter student name"
+                onChange={e => setName(e.target.value)}
+              />
+              <button onClick={addStudent} className="btn-add">Add Student</button>
+            </div>
           </div>
-        ))}
-      </div>
+
+          <div className="student-list-card">
+            <h2>Student Roster</h2>
+            {loading && students.length === 0 ? (
+              <p className="loading-text">Loading students...</p>
+            ) : students.length === 0 ? (
+              <p className="empty-text">No students found. Add one above!</p>
+            ) : (
+              <div className="student-list">
+                {students.map(s => (
+                  <div key={s.id} className="student-row">
+                    <div className="student-info">
+                      <span className="student-name">{s.name}</span>
+                      <span 
+                        className="student-badge"
+                        style={{ backgroundColor: computeColor(s.percentage) }}
+                      >
+                        {s.percentage}% ({s.present}/{s.total})
+                      </span>
+                    </div>
+                    <div className="student-actions">
+                      <button className="btn-present" onClick={() => handleAttendance(s, true)}>+ Present</button>
+                      <button className="btn-absent" onClick={() => handleAttendance(s, false)}>+ Absent</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Right Column: Analytics */}
+        <section className="analytics">
+          <div className="chart-card">
+            <div className="chart-wrapper">
+              {students.length > 0 ? (
+                <Bar options={chartOptions} data={chartData} />
+              ) : (
+                <div className="empty-chart">Not enough data to display chart.</div>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

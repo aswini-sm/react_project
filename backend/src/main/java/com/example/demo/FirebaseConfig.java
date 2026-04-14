@@ -20,15 +20,21 @@ public class FirebaseConfig {
             // Check to prevent re-initialization if the context is reloaded
             if (FirebaseApp.getApps().isEmpty()) {
                 String firebaseEnv = System.getenv("FIREBASE_CREDENTIAL_JSON");
+                InputStream serviceAccount;
                 
-                if (firebaseEnv == null || firebaseEnv.trim().isEmpty()) {
-                    throw new IllegalStateException("Missing environment variable: FIREBASE_CREDENTIAL_JSON. " +
-                            "Please configure this in your Render environment variables with the complete service account JSON.");
+                if (firebaseEnv != null && !firebaseEnv.trim().isEmpty()) {
+                    // Load from Render Environment Variable
+                    serviceAccount = new ByteArrayInputStream(firebaseEnv.getBytes(StandardCharsets.UTF_8));
+                    System.out.println("Loading Firebase credentials from FIREBASE_CREDENTIAL_JSON environment variable.");
+                } else {
+                    // Fallback to local file for local development
+                    serviceAccount = getClass().getResourceAsStream("/firebase/serviceAccountKey.json");
+                    if (serviceAccount == null) {
+                        throw new IllegalStateException("Missing Firebase credentials! " +
+                                "Set FIREBASE_CREDENTIAL_JSON env var or provide src/main/resources/firebase/serviceAccountKey.json");
+                    }
+                    System.out.println("Loading Firebase credentials from local serviceAccountKey.json");
                 }
-
-                // Load from Render Environment Variable
-                InputStream serviceAccount = new ByteArrayInputStream(firebaseEnv.getBytes(StandardCharsets.UTF_8));
-                System.out.println("Loading Firebase credentials strictly from FIREBASE_CREDENTIAL_JSON environment variable.");
 
                 GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
                 
