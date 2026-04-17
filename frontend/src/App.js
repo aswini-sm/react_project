@@ -1,34 +1,26 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Login from "./Login";
-import { auth, db } from "./firebase";
+import { auth } from "./firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { collection, getDocs, addDoc, updateDoc, doc } from "firebase/firestore";
+import axios from "axios";
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   Legend,
-} from 'chart.js';
-import { Bar } from 'react-chartjs-2';
+  ResponsiveContainer,
+  Cell
+} from "recharts";
 import './App.css';
 
-// Register ChartJS plugins
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+const API = "https://react-project-5-nl1p.onrender.com";
 
 function App() {
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Monitor Firebase Auth State
@@ -43,96 +35,112 @@ function App() {
     await signOut(auth);
   };
 
-  const computeColor = (percentage) => {
-    if (percentage >= 75) return "rgba(34, 197, 94, 0.8)"; // Green
-    if (percentage >= 50) return "rgba(249, 115, 22, 0.8)"; // Orange
-    return "rgba(239, 68, 68, 0.8)"; // Red
-  };
-
   const getPercentage = (present, total) => {
     return total === 0 ? 0 : Math.round((present / total) * 100);
+  };
+
+  const computeColor = (percentage) => {
+    if (percentage >= 75) return "#22c55e"; // Green
+    if (percentage >= 50) return "#f97316"; // Orange
+    return "#ef4444"; // Red
   };
 
   const fetchStudents = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
-      const querySnapshot = await getDocs(collection(db, "students"));
-      const studentsList = querySnapshot.docs.map(docSnap => {
-        const data = docSnap.data();
-        let p = data.totalpresent !== undefined ? data.totalpresent : (data.present || 0);
-        let t = data.totaldays !== undefined ? data.totaldays : (data.total || 0);
-
-        // Legacy normalization from old structure {status: "Present"/"Absent"}
-        if (data.status) {
-          if (data.status === "Present" && p === 0 && t === 0) {
-            p = 1; t = 1;
-          } else if (data.status === "Absent" && p === 0 && t === 0) {
-            p = 0; t = 1;
-          }
-        }
-        
-        return {
-          id: docSnap.id,
-          name: data.name,
-          present: p,
-          total: t,
-          percentage: getPercentage(p, t),
-        };
-      });
+      console.log("Fetching students from Firebase Realtime DB...");
+      
+      const response = await axios.get("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students.json");
+      console.log("Raw Data from Firebase:", response.data);
+      
+      let studentsList = [];
+      if (response.data) {
+        studentsList = Object.keys(response.data).map(key => {
+          const student = response.data[key];
+          // Determine the total field based on what is available (totalDays or totalClasses from backend)
+          const total = student.totalDays !== undefined ? student.totalDays : (student.totalClasses || 0);
+          const present = student.presentCount || 0;
+          return {
+            id: key,
+            name: student.name || "Unknown",
+            present: present,
+            total: total,
+            percentage: getPercentage(present, total),
+          };
+        });
+      }
+      
+      console.log("Processed Students Array:", studentsList);
       setStudents(studentsList);
     } catch (err) {
-      console.error("GET ERROR:", err);
-      alert("Failed to fetch students. Check permissions.");
+      console.error("GET ERROR:", err.response || err);
+      alert("Failed to fetch students. Open console for details.");
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  const addStudent = async () => {
-    if (!name.trim()) return alert("Enter a student name");
-
+  const handleAttendance = async (studentId, isPresent) => {
     try {
-      setLoading(true);
-      await addDoc(collection(db, "students"), {
-        name,
-        totalpresent: 0,
-        totaldays: 0,
-        attendancepercent: "0%"
-      });
-      setName("");
-      fetchStudents();
-    } catch (err) {
-      console.error("ADD ERROR:", err);
-      alert("Failed to add student.");
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Find the specific student we are updating safely
+      const studentToUpdate = students.find(s => s.id === studentId);
+      if (!studentToUpdate) {
+         console.warn("Student ID not found in current UI state.");
+         return; 
+      }
 
-  const handleAttendance = async (student, isPresent) => {
-    try {
-      const newPresent = student.present + (isPresent ? 1 : 0);
-      const newTotal = student.total + 1;
+      // Calculate newly updated metrics
+      const newPresent = studentToUpdate.present + (isPresent ? 1 : 0);
+      const newTotal = studentToUpdate.total + 1;
       const newPercentage = getPercentage(newPresent, newTotal);
-      
-      // Optimistic UI Update
-      setStudents(prev => prev.map(s => 
-        s.id === student.id 
-          ? { ...s, present: newPresent, total: newTotal, percentage: newPercentage }
-          : s
-      ));
 
-      const docRef = doc(db, "students", student.id);
-      await updateDoc(docRef, {
-        totalpresent: newPresent,
-        totaldays: newTotal,
-        attendancepercent: newPercentage + "%"
-      });
+      console.log(`[DEBUG] Preparing to update ${studentToUpdate.name} (${studentId})...`);
+      console.log(`[DEBUG] Old Stats -> Present: ${studentToUpdate.present}, Total: ${studentToUpdate.total}`);
+      console.log(`[DEBUG] New Stats -> Present: ${newPresent}, Total: ${newTotal}`);
+
+      // Optimistic UI Update so user gets instant visual feedback
+      setStudents(prev => prev.map(s => {
+        if (s.id === studentId) {
+           return {
+              ...s,
+              present: newPresent,
+              total: newTotal,
+              percentage: newPercentage
+           };
+        }
+        return s;
+      }));
+
+      // Firebase PATCH expects just the explicit fields you wish to mutate.
+      const payload = {
+         presentCount: newPresent,
+         totalDays: newTotal
+      };
+      
+      console.log("[DEBUG] Sending PATCH payload to Firebase:", payload);
+      
+      // Grab Firebase Authentication JWT (in case Realtime DB rules require auth)
+      let authParam = "";
+      if (user) {
+         const authToken = await user.getIdToken();
+         authParam = `?auth=${authToken}`;
+      }
+
+      // Call Realtime Database REST API directly using PATCH method on exactly the student node
+      const firebaseEndpoint = `https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students/${studentId}.json${authParam}`;
+      const response = await axios.patch(firebaseEndpoint, payload);
+      
+      console.log("[DEBUG] Firebase PATCH Response Success:", response.data);
+
+      // Reload fresh data globally after success to enforce synchronization
+      fetchStudents();
+
     } catch (err) {
-      console.error("UPDATE ERROR:", err);
-      alert("Failed to update attendance.");
-      // Revert optimism on error
+      console.error("[ERROR] FIREBASE UPDATE ERROR:", err.response || err);
+      alert(`Failed to mark attendance. ${err.response?.status === 401 ? 'Permission Denied! Ensure Firebase Rules permit write operations.' : ''}`);
+      
+      // Rollback optimistic frontend update by refetching genuine DB state
       fetchStudents();
     }
   };
@@ -147,35 +155,6 @@ function App() {
     return <Login />;
   }
 
-  // Setup Chart Data
-  const chartData = {
-    labels: students.map(s => s.name),
-    datasets: [
-      {
-        label: 'Attendance %',
-        data: students.map(s => s.percentage),
-        backgroundColor: students.map(s => computeColor(s.percentage)),
-        borderRadius: 6,
-      }
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-        ticks: { stepSize: 20 }
-      }
-    },
-    plugins: {
-      legend: { display: false },
-      title: { display: true, text: 'Student Attendance Overview' }
-    }
-  };
-
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -187,26 +166,13 @@ function App() {
       </header>
 
       <main className="dashboard-content">
-        {/* Left Column: Student Management */}
         <section className="student-management">
-          <div className="add-student-card">
-            <h2>Add New Student</h2>
-            <div className="input-group">
-              <input
-                value={name}
-                placeholder="Enter student name"
-                onChange={e => setName(e.target.value)}
-              />
-              <button onClick={addStudent} className="btn-add">Add Student</button>
-            </div>
-          </div>
-
           <div className="student-list-card">
             <h2>Student Roster</h2>
             {loading && students.length === 0 ? (
               <p className="loading-text">Loading students...</p>
             ) : students.length === 0 ? (
-              <p className="empty-text">No students found. Add one above!</p>
+              <p className="empty-text">No students found.</p>
             ) : (
               <div className="student-list">
                 {students.map(s => (
@@ -215,14 +181,14 @@ function App() {
                       <span className="student-name">{s.name}</span>
                       <span 
                         className="student-badge"
-                        style={{ backgroundColor: computeColor(s.percentage) }}
+                        style={{ backgroundColor: computeColor(s.percentage), color: '#fff' }}
                       >
                         {s.percentage}% ({s.present}/{s.total})
                       </span>
                     </div>
                     <div className="student-actions">
-                      <button className="btn-present" onClick={() => handleAttendance(s, true)}>+ Present</button>
-                      <button className="btn-absent" onClick={() => handleAttendance(s, false)}>+ Absent</button>
+                      <button className="btn-present" onClick={() => handleAttendance(s.id, true)}>+ Present</button>
+                      <button className="btn-absent" onClick={() => handleAttendance(s.id, false)}>+ Absent</button>
                     </div>
                   </div>
                 ))}
@@ -231,12 +197,27 @@ function App() {
           </div>
         </section>
 
-        {/* Right Column: Analytics */}
         <section className="analytics">
           <div className="chart-card">
-            <div className="chart-wrapper">
+            <div className="chart-wrapper" style={{ height: '400px' }}>
               {students.length > 0 ? (
-                <Bar options={chartOptions} data={chartData} />
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={students}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="percentage" name="Attendance %">
+                      {students.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={computeColor(entry.percentage)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
                 <div className="empty-chart">Not enough data to display chart.</div>
               )}

@@ -1,27 +1,24 @@
 package com.example.demo;
 
-import java.util.Date;
-
 public class Student {
 
     private String id;
     private String name;
-    private String status;
-    private Date date;
+    private long totalClasses;
+    private long presentCount;
+    private Integer age;
 
-    // 1️⃣ No-args constructor (Mandatory for Firestore deserialization)
     public Student() {
     }
 
-    // 2️⃣ All-args constructor (Optional, but convenient)
-    public Student(String id, String name, String status, Date date) {
+    public Student(String id, String name, long totalClasses, long presentCount, Integer age) {
         this.id = id;
         this.name = name;
-        this.status = status;
-        this.date = date;
+        this.totalClasses = totalClasses;
+        this.presentCount = presentCount;
+        this.age = age;
     }
 
-    // 3️⃣ Getters and Setters
     public String getId() {
         return id;
     }
@@ -38,19 +35,27 @@ public class Student {
         this.name = name;
     }
 
-    public String getStatus() {
-        return status;
+    public long getTotalClasses() {
+        return totalClasses;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setTotalClasses(long totalClasses) {
+        this.totalClasses = totalClasses;
     }
 
-    public Date getDate() {
-        return date;
+    public long getPresentCount() {
+        return presentCount;
     }
 
-    public void setDate(Date date) {
-        this.date = date;
+    public void setPresentCount(long presentCount) {
+        this.presentCount = presentCount;
+    }
+
+    public Integer getAge() {
+        return age;
+    }
+
+    public void setAge(Integer age) {
+        this.age = age;
     }
 }

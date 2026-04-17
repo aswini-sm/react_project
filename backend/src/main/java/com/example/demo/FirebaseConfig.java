@@ -39,7 +39,8 @@ public class FirebaseConfig {
                 GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
                 
                 FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
-                        .setCredentials(credentials);
+                        .setCredentials(credentials)
+                        .setDatabaseUrl("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/");
 
                 // 🔥 CRITICAL FIX: Explicitly set Project ID to prevent 502 Bad Gateway timeout hangs on Render
                 if (credentials instanceof ServiceAccountCredentials) {

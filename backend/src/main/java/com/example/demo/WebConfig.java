@@ -16,9 +16,9 @@ public class WebConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
-        // Exact origins must be specified when allowCredentials is true
-        config.setAllowCredentials(true);
-        config.setAllowedOrigins(Arrays.asList("https://react-project-ayxh.vercel.app"));
+        // Exact origins must be specified when allowCredentials is true, so disable it for '*'
+        config.setAllowCredentials(false);
+        config.setAllowedOrigins(Arrays.asList("*"));
         config.setAllowedHeaders(Arrays.asList("*"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         
