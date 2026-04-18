@@ -16,12 +16,14 @@ import {
 } from "recharts";
 import './App.css';
 
-const API = process.env.REACT_APP_API_URL;
+const API = process.env.REACT_APP_API_URL || "http://localhost:8080";
 
 function App() {
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newAge, setNewAge] = useState("");
 
   // Monitor Firebase Auth State
   useEffect(() => {
@@ -66,15 +68,39 @@ function App() {
     }
   }, [user]);
 
-  const markAttendance = async (id) => {
+  const addStudent = async (e) => {
+    e.preventDefault();
+    if (!newName.trim() || !newAge) return;
+
     try {
-      await axios.put(`${API}/students/${id}/status`, {
-        status: "Present"
+      await axios.post(`${API}/students`, {
+        name: newName,
+        age: parseInt(newAge, 10)
       });
+      setNewName("");
+      setNewAge("");
+      fetchStudents();
+    } catch (error) {
+      console.error("ADD STUDENT ERROR:", error);
+    }
+  };
+
+  const markAttendance = async (id, type) => {
+    try {
+      console.log(`[DEBUG] Attempting to mark student [${id}] as [${type}]`);
+      const url = `${API}/students/${id}/attendance?type=${type}`;
+      console.log(`[DEBUG] Sending PUT request to: ${url}`);
+
+      const response = await axios.put(url);
+      console.log("[DEBUG] Success Response:", response.data);
 
       fetchStudents(); // refresh UI
     } catch (error) {
-      console.error("UPDATE ERROR:", error);
+      console.error("[DEBUG] UPDATE ERROR:", error);
+      if (error.response) {
+        console.error("[DEBUG] Error Data:", error.response.data);
+        console.error("[DEBUG] Error Status:", error.response.status);
+      }
     }
   };
 
@@ -100,6 +126,28 @@ function App() {
 
       <main className="dashboard-content">
         <section className="student-management">
+
+          <div className="student-list-card" style={{ marginBottom: "2rem" }}>
+            <h2>Add New Student</h2>
+            <form onSubmit={addStudent} style={{ display: "flex", gap: "10px", marginTop: "1rem" }}>
+              <input
+                type="text"
+                placeholder="Student Name"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                required
+              />
+              <input
+                type="number"
+                placeholder="Age"
+                value={newAge}
+                onChange={e => setNewAge(e.target.value)}
+                required
+              />
+              <button type="submit" className="btn-present">Add Student</button>
+            </form>
+          </div>
+
           <div className="student-list-card">
             <h2>Student Roster</h2>
             {loading && students.length === 0 ? (
@@ -114,10 +162,10 @@ function App() {
                     <div key={s.id} className="student-row">
                       <div className="student-info">
                         <h3>{s.name}</h3>
+                        <p>Age: {s.age}</p>
                         <p>Present: {s.presentCount}</p>
                         <p>Total: {s.totalDays}</p>
                         <p>Attendance: {percentage}%</p>
-                        {/* We use existing badge for aesthetics as well */}
                         <span
                           className="student-badge"
                           style={{ backgroundColor: computeColor(percentage), color: '#fff' }}
@@ -125,9 +173,12 @@ function App() {
                           Status
                         </span>
                       </div>
-                      <div className="student-actions">
-                        <button className="btn-present" onClick={() => markAttendance(s.id)}>
-                          Mark Present
+                      <div className="student-actions" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        <button className="btn-present" onClick={() => markAttendance(s.id, "present")}>
+                          Present
+                        </button>
+                        <button className="btn-absent" onClick={() => markAttendance(s.id, "absent")}>
+                          Absent
                         </button>
                       </div>
                     </div>
@@ -144,7 +195,7 @@ function App() {
               {students.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={students.map(s => ({...s, percentage: getPercentage(s.presentCount, s.totalDays)}))}
+                    data={students.map(s => ({ ...s, percentage: getPercentage(s.presentCount, s.totalDays) }))}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />

@@ -4,17 +4,17 @@ public class Student {
 
     private String id;
     private String name;
-    private long totalClasses;
+    private long totalDays;
     private long presentCount;
     private Integer age;
 
     public Student() {
     }
 
-    public Student(String id, String name, long totalClasses, long presentCount, Integer age) {
+    public Student(String id, String name, long totalDays, long presentCount, Integer age) {
         this.id = id;
         this.name = name;
-        this.totalClasses = totalClasses;
+        this.totalDays = totalDays;
         this.presentCount = presentCount;
         this.age = age;
     }
@@ -35,12 +35,12 @@ public class Student {
         this.name = name;
     }
 
-    public long getTotalClasses() {
-        return totalClasses;
+    public long getTotalDays() {
+        return totalDays;
     }
 
-    public void setTotalClasses(long totalClasses) {
-        this.totalClasses = totalClasses;
+    public void setTotalDays(long totalDays) {
+        this.totalDays = totalDays;
     }
 
     public long getPresentCount() {

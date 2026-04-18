@@ -8,12 +8,26 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/students")
+@CrossOrigin(origins = "*")
 public class StudentController {
 
     private final StudentService studentService;
 
     public StudentController(StudentService studentService) {
         this.studentService = studentService;
+    }
+
+    @PostMapping
+    public ResponseEntity<?> addStudent(@RequestBody Student student) {
+        System.out.println("\n--- [DEBUG] POST /students RECEIVED ---");
+        try {
+            String id = studentService.addStudent(student).get();
+            return ResponseEntity.ok("{\"message\": \"Student created\", \"id\": \"" + id + "\"}");
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("{\"error\": \"" + e.getMessage() + "\"}");
+        }
     }
 
     @GetMapping
@@ -29,25 +43,12 @@ public class StudentController {
         }
     }
 
-    @PutMapping("/{id}/present")
-    public ResponseEntity<?> markPresent(@PathVariable String id) {
-        System.out.println("\n--- [DEBUG] PUT /students/" + id + "/present RECEIVED ---");
+    @PutMapping("/{id}/attendance")
+    public ResponseEntity<?> markAttendance(@PathVariable String id, @RequestParam("type") String type) {
+        System.out.println("\n--- [DEBUG] PUT /students/" + id + "/attendance?type=" + type + " RECEIVED ---");
         try {
-            studentService.markPresent(id).get();
-            return ResponseEntity.ok("{\"message\": \"Marked present successfully\"}");
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("{\"error\": \"" + e.getMessage() + "\"}");
-        }
-    }
-
-    @PutMapping("/{id}/absent")
-    public ResponseEntity<?> markAbsent(@PathVariable String id) {
-        System.out.println("\n--- [DEBUG] PUT /students/" + id + "/absent RECEIVED ---");
-        try {
-            studentService.markAbsent(id).get();
-            return ResponseEntity.ok("{\"message\": \"Marked absent successfully\"}");
+            studentService.markAttendance(id, type).get();
+            return ResponseEntity.ok("{\"message\": \"Marked " + type + " successfully\"}");
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

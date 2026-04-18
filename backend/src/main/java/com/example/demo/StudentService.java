@@ -42,67 +42,75 @@ public class StudentService {
         return future;
     }
 
-    public CompletableFuture<String> markPresent(String id) {
+    public CompletableFuture<String> addStudent(Student newStudent) {
         CompletableFuture<String> future = new CompletableFuture<>();
-        DatabaseReference studentRef = getStudentsRef().child(id);
-        studentRef.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                if (dataSnapshot.exists()) {
-                    Student student = dataSnapshot.getValue(Student.class);
-                    if (student != null) {
-                        student.setPresentCount(student.getPresentCount() + 1);
-                        student.setTotalClasses(student.getTotalClasses() + 1);
-                        studentRef.setValue(student, (databaseError, databaseReference) -> {
-                            if (databaseError != null) {
-                                future.completeExceptionally(databaseError.toException());
-                            } else {
-                                future.complete(id);
-                            }
-                        });
-                    }
-                } else {
-                    future.completeExceptionally(new RuntimeException("Student not found"));
-                }
-            }
+        // Generate unique ID
+        String id = java.util.UUID.randomUUID().toString();
+        newStudent.setId(id);
+        newStudent.setPresentCount(0);
+        newStudent.setTotalDays(0);
 
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
+        DatabaseReference studentRef = getStudentsRef().child(id);
+        studentRef.setValue(newStudent, (databaseError, databaseReference) -> {
+            if (databaseError != null) {
                 future.completeExceptionally(databaseError.toException());
+            } else {
+                future.complete(id);
             }
         });
         return future;
     }
 
-    public CompletableFuture<String> markAbsent(String id) {
+    public CompletableFuture<String> markAttendance(String id, String type) {
         CompletableFuture<String> future = new CompletableFuture<>();
         DatabaseReference studentRef = getStudentsRef().child(id);
+        
+        System.out.println("[SERVICE DEBUG] Fetching student from Firebase with ID: " + id);
         studentRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()) {
                     Student student = dataSnapshot.getValue(Student.class);
                     if (student != null) {
-                        student.setTotalClasses(student.getTotalClasses() + 1);
-                        studentRef.setValue(student, (databaseError, databaseReference) -> {
+                        System.out.println("[SERVICE DEBUG] Student found: " + student.getName());
+                        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+                        long newTotalDays = student.getTotalDays() + 1;
+                        updates.put("totalDays", newTotalDays);
+                        
+                        if ("present".equalsIgnoreCase(type)) {
+                            long newPresentCount = student.getPresentCount() + 1;
+                            updates.put("presentCount", newPresentCount);
+                            System.out.println("[SERVICE DEBUG] Marking Present -> new count: " + newPresentCount + ", total days: " + newTotalDays);
+                        } else if ("absent".equalsIgnoreCase(type)) {
+                            System.out.println("[SERVICE DEBUG] Marking Absent -> total days: " + newTotalDays);
+                        } else {
+                            System.err.println("[SERVICE DEBUG] Invalid type passed: " + type);
+                            future.completeExceptionally(new IllegalArgumentException("Invalid attendance type"));
+                            return;
+                        }
+                        
+                        studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
                             if (databaseError != null) {
+                                System.err.println("[SERVICE DEBUG] Firebase update error: " + databaseError.getMessage());
                                 future.completeExceptionally(databaseError.toException());
                             } else {
+                                System.out.println("[SERVICE DEBUG] Firebase update successful for ID: " + id);
                                 future.complete(id);
                             }
                         });
                     }
                 } else {
+                    System.err.println("[SERVICE DEBUG] Student Snapshot does not exist for ID: " + id);
                     future.completeExceptionally(new RuntimeException("Student not found"));
                 }
             }
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
+                System.err.println("[SERVICE DEBUG] Firebase read cancelled: " + databaseError.getMessage());
                 future.completeExceptionally(databaseError.toException());
             }
         });
         return future;
     }
 }
-
