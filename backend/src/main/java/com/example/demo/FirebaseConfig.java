@@ -20,43 +20,49 @@ public class FirebaseConfig {
             // Prevent multiple initializations
             if (FirebaseApp.getApps().isEmpty()) {
                 InputStream serviceAccount = null;
-                String json = System.getenv("FIREBASE_CREDENTIAL_JSON");
-                
-                // IF environment variable FIREBASE_CREDENTIAL_JSON exists
-                if (json != null && !json.trim().isEmpty()) {
-                    System.out.println("Using ENV Firebase credentials");
-                    
-                    // Handle JSON string formatting issues (strip quotes, fix newlines)
-                    json = json.trim();
-                    if (json.startsWith("\"") && json.endsWith("\"")) {
-                        json = json.substring(1, json.length() - 1);
-                    }
-                    json = json.replace("\\n", "\n");
-                    
+                String type = System.getenv("FIREBASE_TYPE");
+                String projectIdEnv = System.getenv("FIREBASE_PROJECT_ID");
+                String privateKey = System.getenv("FIREBASE_PRIVATE_KEY");
+                String clientEmail = System.getenv("FIREBASE_CLIENT_EMAIL");
+
+                // IF environment variables exist (Render Deployment)
+                if (type != null && projectIdEnv != null && privateKey != null && clientEmail != null) {
+                    System.out.println("[DEPLOYMENT DEBUG] Using individual ENV Firebase credentials");
+
+                    // Render might literalize the \n characters, so we enforce real newlines
+                    privateKey = privateKey.replace("\\n", "\n");
+
+                    // Manually build the JSON required by Firebase Admin SDK
+                    String json = String.format(
+                        "{\"type\": \"%s\", \"project_id\": \"%s\", \"private_key\": \"%s\", \"client_email\": \"%s\"}",
+                        type, projectIdEnv, privateKey.replace("\n", "\\n"), clientEmail
+                    );
+
                     serviceAccount = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
                 } else {
                     // ELSE load from local file for development
                     System.out.println("Using LOCAL Firebase credentials");
-                    
+
                     // Note: serviceAccountKey.json MUST be placed in:
                     // src/main/resources/serviceAccountKey.json
                     serviceAccount = getClass().getResourceAsStream("/serviceAccountKey.json");
-                    
-                    // Fallback to the old /firebase/ directory path just in case it hasn't been moved yet
+
+                    // Fallback to the old /firebase/ directory path just in case it hasn't been
+                    // moved yet
                     if (serviceAccount == null) {
                         serviceAccount = getClass().getResourceAsStream("/firebase/serviceAccountKey.json");
                     }
                 }
-                
+
                 // If BOTH env variable and file are missing -> throw explicit error
                 if (serviceAccount == null) {
                     System.err.println("🔥 CRITICAL ERROR: Firebase credentials NOT FOUND!");
-                    System.err.println("Make sure FIREBASE_CREDENTIAL_JSON environment variable is set on Render.");
+                    System.err.println("Ensure FIREBASE_TYPE, FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL are set in Render.");
                     throw new RuntimeException("Firebase credentials not found in ENV or resources");
                 }
 
                 GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
-                
+
                 FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
                         .setCredentials(credentials)
                         .setDatabaseUrl("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/");
