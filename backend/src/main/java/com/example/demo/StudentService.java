@@ -19,26 +19,40 @@ public class StudentService {
     }
 
     public CompletableFuture<List<Student>> getAllStudents() {
+        System.out.println("Fetching students...");
         CompletableFuture<List<Student>> future = new CompletableFuture<>();
-        getStudentsRef().addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                List<Student> list = new ArrayList<>();
-                for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
-                    Student student = snapshot.getValue(Student.class);
-                    if (student != null) {
-                        student.setId(snapshot.getKey());
-                        list.add(student);
+        try {
+            getStudentsRef().addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    try {
+                        List<Student> list = new ArrayList<>();
+                        if (dataSnapshot != null && dataSnapshot.exists()) {
+                            for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                                if (snapshot == null || !snapshot.exists()) continue;
+                                Student student = snapshot.getValue(Student.class);
+                                if (student != null) {
+                                    student.setId(snapshot.getKey());
+                                    list.add(student);
+                                }
+                            }
+                        }
+                        future.complete(list);
+                    } catch (Exception e) {
+                        System.err.println("Error mapping students: " + e.getMessage());
+                        future.complete(new ArrayList<>()); // Fallback to empty
                     }
                 }
-                future.complete(list);
-            }
 
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                future.completeExceptionally(databaseError.toException());
-            }
-        });
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+                    System.err.println("Database error: " + databaseError.getMessage());
+                    future.complete(new ArrayList<>()); // Fallback empty, never hang
+                }
+            });
+        } catch (Exception e) {
+            future.complete(new ArrayList<>()); // Complete immediately if initial call fails
+        }
         return future;
     }
 

@@ -34,12 +34,15 @@ public class StudentController {
     public ResponseEntity<?> getAll() {
         System.out.println("\n--- [DEBUG] GET /students RECEIVED ---");
         try {
-            List<Student> students = studentService.getAllStudents().get();
-            return ResponseEntity.ok(students);
+            // NEVER HANG: Timeout after 15 seconds
+            List<Student> students = studentService.getAllStudents().get(15, java.util.concurrent.TimeUnit.SECONDS);
+            System.out.println("Students fetched: " + (students != null ? students.size() : 0));
+            return ResponseEntity.ok(students != null ? students : java.util.Collections.emptyList());
         } catch (Exception e) {
+            System.err.println("Error fetching students: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("{\"error\": \"" + e.getMessage() + "\"}");
+            // ALWAYS return empty list on failure, never hang
+            return ResponseEntity.ok(java.util.Collections.emptyList());
         }
     }
 
