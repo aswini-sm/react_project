@@ -9,9 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class StudentService {
@@ -21,58 +19,41 @@ public class StudentService {
     }
 
     public List<java.util.Map<String, Object>> getAllStudents() {
-        System.out.println("Fetching students synchronously from Firebase...");
-        AtomicReference<List<java.util.Map<String, Object>>> ref = new AtomicReference<>(new ArrayList<>());
-        CountDownLatch latch = new CountDownLatch(1);
-        
+        System.out.println("Fetching students synchronously from Firebase using ApiFuture...");
         try {
-            getStudentsRef().addListenerForSingleValueEvent(new ValueEventListener() {
-                @Override
-                public void onDataChange(DataSnapshot dataSnapshot) {
-                    try {
-                        List<java.util.Map<String, Object>> list = new ArrayList<>();
-                        System.out.println("[DEBUG] Firebase Snapshot received. exists()=" + (dataSnapshot != null ? dataSnapshot.exists() : false));
-                        System.out.println("[DEBUG] Number of children: " + (dataSnapshot != null ? dataSnapshot.getChildrenCount() : 0));
-                        System.out.println("[DEBUG] Raw Firebase Snapshot value: " + (dataSnapshot != null ? dataSnapshot.getValue() : "null"));
+            // Using synchronous ApiFuture wait to completely bypass background thread listener issues
+            com.google.api.core.ApiFuture<DataSnapshot> future = getStudentsRef().get();
+            DataSnapshot dataSnapshot = future.get(20, TimeUnit.SECONDS);
 
-                        if (dataSnapshot != null && dataSnapshot.exists()) {
-                            for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
-                                if (snapshot == null || !snapshot.exists()) continue;
-                                
-                                java.util.Map<String, Object> studentMap = new java.util.HashMap<>();
-                                studentMap.put("id", snapshot.getKey());
-                                studentMap.put("name", snapshot.child("name").getValue());
-                                studentMap.put("age", snapshot.child("age").getValue());
-                                studentMap.put("presentCount", snapshot.child("presentCount").getValue());
-                                studentMap.put("totalDays", snapshot.child("totalDays").getValue());
-                                
-                                list.add(studentMap);
-                            }
-                        }
-                        ref.set(list);
-                    } catch (Exception e) {
-                        System.err.println("Error mapping students: " + e.getMessage());
-                    } finally {
-                        latch.countDown();
-                    }
-                }
+            List<java.util.Map<String, Object>> list = new ArrayList<>();
+            System.out.println("[DEBUG] Firebase Snapshot received. exists()=" + (dataSnapshot != null ? dataSnapshot.exists() : false));
+            System.out.println("[DEBUG] Number of children: " + (dataSnapshot != null ? dataSnapshot.getChildrenCount() : 0));
+            System.out.println("[DEBUG] Raw Firebase Snapshot value: " + (dataSnapshot != null ? dataSnapshot.getValue() : "null"));
 
-                @Override
-                public void onCancelled(DatabaseError databaseError) {
-                    System.err.println("Database error: " + databaseError.getMessage());
-                    latch.countDown();
+            if (dataSnapshot != null && dataSnapshot.exists()) {
+                for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
+                    if (snapshot == null || !snapshot.exists()) continue;
+                    
+                    java.util.Map<String, Object> studentMap = new java.util.HashMap<>();
+                    studentMap.put("id", snapshot.getKey());
+                    studentMap.put("name", snapshot.child("name").getValue());
+                    studentMap.put("age", snapshot.child("age").getValue());
+                    studentMap.put("presentCount", snapshot.child("presentCount").getValue());
+                    studentMap.put("totalDays", snapshot.child("totalDays").getValue());
+                    
+                    list.add(studentMap);
                 }
-            });
-            
-            boolean completed = latch.await(15, java.util.concurrent.TimeUnit.SECONDS);
-            if (!completed) {
-                System.err.println("Firebase get operation timed out after 15 seconds.");
             }
+            return list;
+        } catch (java.util.concurrent.TimeoutException e) {
+            System.err.println("🔥 CRITICAL TIMEOUT: Firebase get(...) timed out after 20 seconds.");
+            e.printStackTrace();
+            return new ArrayList<>();
         } catch (Exception e) {
-            System.err.println("Firebase fetch failed: " + e.getMessage());
-            Thread.currentThread().interrupt();
+            System.err.println("🔥 ERROR: Firebase fetch failed: " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
         }
-        return ref.get();
     }
 
     public String addStudent(Student newStudent) {
