@@ -16,12 +16,13 @@ import {
 } from "recharts";
 import './App.css';
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:10000";
+const API = process.env.REACT_APP_API_URL || "https://react-project-5-nl1p.onrender.com";
 
 function App() {
   const [user, setUser] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
 
@@ -55,14 +56,18 @@ function App() {
       const res = await axios.get(`${API}/students`);
       console.log("DATA:", res.data);
 
-      if (!res.data) {
+      if (Array.isArray(res.data)) {
+        setStudents(res.data);
+        setApiError(false);
+      } else {
+        console.error("Backend sent non-array data:", res.data);
         setStudents([]);
-        return;
+        setApiError(true);
       }
-
-      setStudents(res.data);
     } catch (error) {
       console.error("API ERROR:", error.response || error.message);
+      setApiError(true);
+      setStudents([]);
     } finally {
       setLoading(false);
     }
@@ -146,7 +151,9 @@ function App() {
 
           <div className="student-list-card">
             <h2>Student Roster</h2>
-            {loading && students.length === 0 ? (
+            {apiError ? (
+              <p style={{ color: 'red', fontWeight: 'bold' }}>Backend not reachable. Please check API configuration or Render logs.</p>
+            ) : loading && students.length === 0 ? (
               <p className="loading-text">Loading students...</p>
             ) : students.length === 0 ? (
               <p>No data available</p>
