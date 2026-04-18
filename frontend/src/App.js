@@ -49,99 +49,32 @@ function App() {
     if (!user) return;
     try {
       setLoading(true);
-      console.log("Fetching students from Firebase Realtime DB...");
+      console.log("API URL:", API);
+      const res = await axios.get(`${API}/students`);
+      console.log("FETCHED DATA:", res.data);
 
-      const response = await axios.get("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students.json");
-      console.log("Raw Data from Firebase:", response.data);
-
-      let studentsList = [];
-      if (response.data) {
-        studentsList = Object.keys(response.data).map(key => {
-          const student = response.data[key];
-          // Determine the total field based on what is available (totalDays or totalClasses from backend)
-          const total = student.totalDays !== undefined ? student.totalDays : (student.totalClasses || 0);
-          const present = student.presentCount || 0;
-          return {
-            id: key,
-            name: student.name || "Unknown",
-            present: present,
-            total: total,
-            percentage: getPercentage(present, total),
-          };
-        });
+      if (!res.data) {
+        setStudents([]);
+        return;
       }
 
-      console.log("Processed Students Array:", studentsList);
-      setStudents(studentsList);
-    } catch (err) {
-      console.error("GET ERROR:", err.response || err);
-      alert("Failed to fetch students. Open console for details.");
+      setStudents(res.data);
+    } catch (error) {
+      console.error("FETCH ERROR:", error);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  const handleAttendance = async (studentId, isPresent) => {
+  const markAttendance = async (id) => {
     try {
-      // Find the specific student we are updating safely
-      const studentToUpdate = students.find(s => s.id === studentId);
-      if (!studentToUpdate) {
-        console.warn("Student ID not found in current UI state.");
-        return;
-      }
+      await axios.put(`${API}/students/${id}/status`, {
+        status: "Present"
+      });
 
-      // Calculate newly updated metrics
-      const newPresent = studentToUpdate.present + (isPresent ? 1 : 0);
-      const newTotal = studentToUpdate.total + 1;
-      const newPercentage = getPercentage(newPresent, newTotal);
-
-      console.log(`[DEBUG] Preparing to update ${studentToUpdate.name} (${studentId})...`);
-      console.log(`[DEBUG] Old Stats -> Present: ${studentToUpdate.present}, Total: ${studentToUpdate.total}`);
-      console.log(`[DEBUG] New Stats -> Present: ${newPresent}, Total: ${newTotal}`);
-
-      // Optimistic UI Update so user gets instant visual feedback
-      setStudents(prev => prev.map(s => {
-        if (s.id === studentId) {
-          return {
-            ...s,
-            present: newPresent,
-            total: newTotal,
-            percentage: newPercentage
-          };
-        }
-        return s;
-      }));
-
-      // Firebase PATCH expects just the explicit fields you wish to mutate.
-      const payload = {
-        presentCount: newPresent,
-        totalDays: newTotal
-      };
-
-      console.log("[DEBUG] Sending PATCH payload to Firebase:", payload);
-
-      // Grab Firebase Authentication JWT (in case Realtime DB rules require auth)
-      let authParam = "";
-      if (user) {
-        const authToken = await user.getIdToken();
-        authParam = `?auth=${authToken}`;
-      }
-
-      // Call Realtime Database REST API directly using PATCH method on exactly the student node
-      const firebaseEndpoint = `https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students/${studentId}.json${authParam}`;
-      const response = await axios.patch(firebaseEndpoint, payload);
-
-      console.log("[DEBUG] Firebase PATCH Response Success:", response.data);
-
-      // Reload fresh data globally after success to enforce synchronization
-      fetchStudents();
-
-    } catch (err) {
-      console.error("[ERROR] FIREBASE UPDATE ERROR:", err.response || err);
-      alert(`Failed to mark attendance. ${err.response?.status === 401 ? 'Permission Denied! Ensure Firebase Rules permit write operations.' : ''}`);
-
-      // Rollback optimistic frontend update by refetching genuine DB state
-      fetchStudents();
+      fetchStudents(); // refresh UI
+    } catch (error) {
+      console.error("UPDATE ERROR:", error);
     }
   };
 
@@ -172,26 +105,34 @@ function App() {
             {loading && students.length === 0 ? (
               <p className="loading-text">Loading students...</p>
             ) : students.length === 0 ? (
-              <p className="empty-text">No students found.</p>
+              <p>No data available</p>
             ) : (
               <div className="student-list">
-                {students.map(s => (
-                  <div key={s.id} className="student-row">
-                    <div className="student-info">
-                      <span className="student-name">{s.name}</span>
-                      <span
-                        className="student-badge"
-                        style={{ backgroundColor: computeColor(s.percentage), color: '#fff' }}
-                      >
-                        {s.percentage}% ({s.present}/{s.total})
-                      </span>
+                {students.map((s) => {
+                  const percentage = getPercentage(s.presentCount, s.totalDays);
+                  return (
+                    <div key={s.id} className="student-row">
+                      <div className="student-info">
+                        <h3>{s.name}</h3>
+                        <p>Present: {s.presentCount}</p>
+                        <p>Total: {s.totalDays}</p>
+                        <p>Attendance: {percentage}%</p>
+                        {/* We use existing badge for aesthetics as well */}
+                        <span
+                          className="student-badge"
+                          style={{ backgroundColor: computeColor(percentage), color: '#fff' }}
+                        >
+                          Status
+                        </span>
+                      </div>
+                      <div className="student-actions">
+                        <button className="btn-present" onClick={() => markAttendance(s.id)}>
+                          Mark Present
+                        </button>
+                      </div>
                     </div>
-                    <div className="student-actions">
-                      <button className="btn-present" onClick={() => handleAttendance(s.id, true)}>+ Present</button>
-                      <button className="btn-absent" onClick={() => handleAttendance(s.id, false)}>+ Absent</button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -203,7 +144,7 @@ function App() {
               {students.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={students}
+                    data={students.map(s => ({...s, percentage: getPercentage(s.presentCount, s.totalDays)}))}
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
@@ -212,9 +153,10 @@ function App() {
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="percentage" name="Attendance %">
-                      {students.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={computeColor(entry.percentage)} />
-                      ))}
+                      {students.map((s, index) => {
+                        const percentage = getPercentage(s.presentCount, s.totalDays);
+                        return <Cell key={`cell-${index}`} fill={computeColor(percentage)} />;
+                      })}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
