@@ -23,9 +23,6 @@ function App() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newAge, setNewAge] = useState("");
 
   // Monitor Firebase Auth State
   useEffect(() => {
@@ -74,41 +71,6 @@ function App() {
     }
   }, [user]);
 
-  const addStudent = async (e) => {
-    e.preventDefault();
-    if (!newName.trim() || !newAge || isSubmitting) return;
-
-    try {
-      setIsSubmitting(true);
-      await axios.post(`${API}/students`, {
-        name: newName,
-        age: parseInt(newAge, 10)
-      });
-      setNewName("");
-      setNewAge("");
-      fetchStudents();
-    } catch (error) {
-      console.error("API ERROR:", error.response || error.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const markAttendance = async (id, type) => {
-    try {
-      console.log(`[DEBUG] Attempting to mark student [${id}] as [${type}]`);
-      const url = `${API}/students/${id}/attendance?type=${type}`;
-      console.log(`[DEBUG] Sending PUT request to: ${url}`);
-
-      const response = await axios.put(url);
-      console.log("[DEBUG] Success Response:", response.data);
-
-      fetchStudents(); // refresh UI
-    } catch (error) {
-      console.error("API ERROR:", error.response || error.message);
-    }
-  };
-
   useEffect(() => {
     if (user) {
       fetchStudents();
@@ -131,30 +93,6 @@ function App() {
 
       <main className="dashboard-content">
         <section className="student-management">
-
-          <div className="student-list-card" style={{ marginBottom: "2rem" }}>
-            <h2>Add New Student</h2>
-            <form onSubmit={addStudent} style={{ display: "flex", gap: "10px", marginTop: "1rem" }}>
-              <input
-                type="text"
-                placeholder="Student Name"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                required
-              />
-              <input
-                type="number"
-                placeholder="Age"
-                value={newAge}
-                onChange={e => setNewAge(e.target.value)}
-                required
-              />
-              <button type="submit" className="btn-present" disabled={isSubmitting}>
-                {isSubmitting ? "Adding..." : "Add Student"}
-              </button>
-            </form>
-          </div>
-
           <div className="student-list-card">
             <h2>Student Roster</h2>
             {apiError ? (
@@ -181,14 +119,6 @@ function App() {
                         >
                           Status
                         </span>
-                      </div>
-                      <div className="student-actions" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        <button className="btn-present" onClick={() => markAttendance(s.id, "present")}>
-                          Present
-                        </button>
-                        <button className="btn-absent" onClick={() => markAttendance(s.id, "absent")}>
-                          Absent
-                        </button>
                       </div>
                     </div>
                   );
