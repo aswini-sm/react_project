@@ -61,8 +61,8 @@ public class StudentService {
         return future;
     }
 
-    public CompletableFuture<String> markAttendance(String id, String type) {
-        CompletableFuture<String> future = new CompletableFuture<>();
+    public CompletableFuture<Student> markAttendance(String id, String type) {
+        CompletableFuture<Student> future = new CompletableFuture<>();
         DatabaseReference studentRef = getStudentsRef().child(id);
         
         System.out.println("[SERVICE DEBUG] Fetching student from Firebase with ID: " + id);
@@ -80,22 +80,21 @@ public class StudentService {
                         if ("present".equalsIgnoreCase(type)) {
                             long newPresentCount = student.getPresentCount() + 1;
                             updates.put("presentCount", newPresentCount);
-                            System.out.println("[SERVICE DEBUG] Marking Present -> new count: " + newPresentCount + ", total days: " + newTotalDays);
+                            student.setPresentCount(newPresentCount);
                         } else if ("absent".equalsIgnoreCase(type)) {
-                            System.out.println("[SERVICE DEBUG] Marking Absent -> total days: " + newTotalDays);
+                            // Only total days incremented above
                         } else {
-                            System.err.println("[SERVICE DEBUG] Invalid type passed: " + type);
                             future.completeExceptionally(new IllegalArgumentException("Invalid attendance type"));
                             return;
                         }
                         
+                        student.setTotalDays(newTotalDays);
+                        
                         studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
                             if (databaseError != null) {
-                                System.err.println("[SERVICE DEBUG] Firebase update error: " + databaseError.getMessage());
                                 future.completeExceptionally(databaseError.toException());
                             } else {
-                                System.out.println("[SERVICE DEBUG] Firebase update successful for ID: " + id);
-                                future.complete(id);
+                                future.complete(student);
                             }
                         });
                     }

@@ -47,8 +47,8 @@ public class StudentController {
     public ResponseEntity<?> markAttendance(@PathVariable String id, @RequestParam("type") String type) {
         System.out.println("\n--- [DEBUG] PUT /students/" + id + "/attendance?type=" + type + " RECEIVED ---");
         try {
-            studentService.markAttendance(id, type).get();
-            return ResponseEntity.ok("{\"message\": \"Marked " + type + " successfully\"}");
+            Student updatedStudent = studentService.markAttendance(id, type).get();
+            return ResponseEntity.ok(updatedStudent);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

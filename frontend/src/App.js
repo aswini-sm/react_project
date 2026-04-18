@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import './App.css';
 
-const API = process.env.REACT_APP_API_URL || "http://localhost:8080";
+const API = process.env.REACT_APP_API_URL || "http://localhost:10000";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -62,7 +62,7 @@ function App() {
 
       setStudents(res.data);
     } catch (error) {
-      console.error("FETCH ERROR:", error);
+      console.error("API ERROR:", error.response || error.message);
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ function App() {
       setNewAge("");
       fetchStudents();
     } catch (error) {
-      console.error("ADD STUDENT ERROR:", error);
+      console.error("API ERROR:", error.response || error.message);
     }
   };
 
@@ -96,11 +96,7 @@ function App() {
 
       fetchStudents(); // refresh UI
     } catch (error) {
-      console.error("[DEBUG] UPDATE ERROR:", error);
-      if (error.response) {
-        console.error("[DEBUG] Error Data:", error.response.data);
-        console.error("[DEBUG] Error Status:", error.response.status);
-      }
+      console.error("API ERROR:", error.response || error.message);
     }
   };
 
