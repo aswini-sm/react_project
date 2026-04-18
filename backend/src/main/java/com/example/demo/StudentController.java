@@ -40,7 +40,7 @@ public class StudentController {
     public ResponseEntity<?> getAll() {
         System.out.println("\n--- [DEBUG] GET /students RECEIVED ---");
         try {
-            List<Student> students = studentService.getAllStudents().get(15, TimeUnit.SECONDS);
+            List<java.util.Map<String, Object>> students = studentService.getAllStudents().get(15, TimeUnit.SECONDS);
             System.out.println("Students fetched: " + (students != null ? students.size() : 0));
             return ResponseEntity.ok(students != null ? students : java.util.Collections.emptyList());
         } catch (Exception e) {
@@ -54,7 +54,7 @@ public class StudentController {
     public ResponseEntity<?> markAttendance(@PathVariable String id, @RequestParam("type") String type) {
         System.out.println("\n--- [DEBUG] PUT /students/" + id + "/attendance?type=" + type + " RECEIVED ---");
         try {
-            Student updatedStudent = studentService.markAttendance(id, type).get(15, TimeUnit.SECONDS);
+            java.util.Map<String, Object> updatedStudent = studentService.markAttendance(id, type).get(15, TimeUnit.SECONDS);
             return ResponseEntity.ok(updatedStudent);
         } catch (Exception e) {
             e.printStackTrace();

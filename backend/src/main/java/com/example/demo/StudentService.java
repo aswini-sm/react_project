@@ -18,23 +18,31 @@ public class StudentService {
         return FirebaseDatabase.getInstance().getReference("students");
     }
 
-    public CompletableFuture<List<Student>> getAllStudents() {
+    public CompletableFuture<List<java.util.Map<String, Object>>> getAllStudents() {
         System.out.println("Fetching students...");
-        CompletableFuture<List<Student>> future = new CompletableFuture<>();
+        CompletableFuture<List<java.util.Map<String, Object>>> future = new CompletableFuture<>();
         try {
             getStudentsRef().addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
                     try {
-                        List<Student> list = new ArrayList<>();
+                        List<java.util.Map<String, Object>> list = new ArrayList<>();
+                        System.out.println("[DEBUG] Firebase Snapshot received.");
+                        System.out.println("[DEBUG] Snapshot value: " + (dataSnapshot != null ? dataSnapshot.getValue() : "null"));
+                        System.out.println("[DEBUG] Number of children: " + (dataSnapshot != null ? dataSnapshot.getChildrenCount() : 0));
+
                         if (dataSnapshot != null && dataSnapshot.exists()) {
                             for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
                                 if (snapshot == null || !snapshot.exists()) continue;
-                                Student student = snapshot.getValue(Student.class);
-                                if (student != null) {
-                                    student.setId(snapshot.getKey());
-                                    list.add(student);
-                                }
+                                
+                                java.util.Map<String, Object> studentMap = new java.util.HashMap<>();
+                                studentMap.put("id", snapshot.getKey());
+                                studentMap.put("name", snapshot.child("name").getValue());
+                                studentMap.put("age", snapshot.child("age").getValue());
+                                studentMap.put("presentCount", snapshot.child("presentCount").getValue());
+                                studentMap.put("totalDays", snapshot.child("totalDays").getValue());
+                                
+                                list.add(studentMap);
                             }
                         }
                         future.complete(list);
@@ -74,39 +82,56 @@ public class StudentService {
         return future;
     }
 
-    public CompletableFuture<Student> markAttendance(String id, String type) {
-        CompletableFuture<Student> future = new CompletableFuture<>();
+    public CompletableFuture<java.util.Map<String, Object>> markAttendance(String id, String type) {
+        CompletableFuture<java.util.Map<String, Object>> future = new CompletableFuture<>();
         DatabaseReference studentRef = getStudentsRef().child(id);
         
         studentRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()) {
-                    Student student = dataSnapshot.getValue(Student.class);
-                    if (student != null) {
-                        java.util.Map<String, Object> updates = new java.util.HashMap<>();
-                        long newTotalDays = student.getTotalDays() + 1;
-                        updates.put("totalDays", newTotalDays);
-                        
-                        if ("present".equalsIgnoreCase(type)) {
-                            long newPresentCount = student.getPresentCount() + 1;
-                            updates.put("presentCount", newPresentCount);
-                            student.setPresentCount(newPresentCount);
-                        } else if (!"absent".equalsIgnoreCase(type)) {
-                            future.completeExceptionally(new IllegalArgumentException("Invalid attendance type"));
-                            return;
-                        }
-                        
-                        student.setTotalDays(newTotalDays);
-                        
-                        studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
-                            if (databaseError != null) {
-                                future.completeExceptionally(databaseError.toException());
-                            } else {
-                                future.complete(student);
-                            }
-                        });
+                    java.util.Map<String, Object> updates = new java.util.HashMap<>();
+                    
+                    Object totalObj = dataSnapshot.child("totalDays").getValue();
+                    long currentTotal = 0;
+                    if (totalObj instanceof Number) currentTotal = ((Number)totalObj).longValue();
+                    else if (totalObj != null) {
+                        try { currentTotal = Long.parseLong(String.valueOf(totalObj)); } catch(Exception e){}
                     }
+                    
+                    long newTotalDays = currentTotal + 1;
+                    updates.put("totalDays", newTotalDays);
+                    
+                    long newPresentCount = 0;
+                    Object presentObj = dataSnapshot.child("presentCount").getValue();
+                    if (presentObj instanceof Number) newPresentCount = ((Number)presentObj).longValue();
+                    else if (presentObj != null) {
+                        try { newPresentCount = Long.parseLong(String.valueOf(presentObj)); } catch(Exception e){}
+                    }
+                    
+                    if ("present".equalsIgnoreCase(type)) {
+                        newPresentCount += 1;
+                        updates.put("presentCount", newPresentCount);
+                    } else if (!"absent".equalsIgnoreCase(type)) {
+                        future.completeExceptionally(new IllegalArgumentException("Invalid attendance type"));
+                        return;
+                    }
+
+                    // Return map with updated values
+                    java.util.Map<String, Object> updatedStudent = new java.util.HashMap<>();
+                    updatedStudent.put("id", dataSnapshot.getKey());
+                    updatedStudent.put("name", dataSnapshot.child("name").getValue());
+                    updatedStudent.put("age", dataSnapshot.child("age").getValue());
+                    updatedStudent.put("presentCount", "present".equalsIgnoreCase(type) ? newPresentCount : (presentObj != null ? presentObj : 0));
+                    updatedStudent.put("totalDays", newTotalDays);
+                    
+                    studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
+                        if (databaseError != null) {
+                            future.completeExceptionally(databaseError.toException());
+                        } else {
+                            future.complete(updatedStudent);
+                        }
+                    });
                 } else {
                     future.completeExceptionally(new RuntimeException("Student not found"));
                 }
