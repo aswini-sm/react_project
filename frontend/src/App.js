@@ -16,7 +16,7 @@ import {
 } from "recharts";
 import './App.css';
 
-const API = "https://react-project-5-nl1p.onrender.com";
+const API = process.env.REACT_APP_API_URL;
 
 function App() {
   const [user, setUser] = useState(null);
@@ -49,9 +49,9 @@ function App() {
     if (!user) return;
     try {
       setLoading(true);
-      console.log("API URL:", API);
+      console.log("API:", API);
       const res = await axios.get(`${API}/students`);
-      console.log("FETCHED DATA:", res.data);
+      console.log("DATA:", res.data);
 
       if (!res.data) {
         setStudents([]);
