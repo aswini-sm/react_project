@@ -50,10 +50,10 @@ function App() {
     try {
       setLoading(true);
       console.log("Fetching students from Firebase Realtime DB...");
-      
+
       const response = await axios.get("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students.json");
       console.log("Raw Data from Firebase:", response.data);
-      
+
       let studentsList = [];
       if (response.data) {
         studentsList = Object.keys(response.data).map(key => {
@@ -70,7 +70,7 @@ function App() {
           };
         });
       }
-      
+
       console.log("Processed Students Array:", studentsList);
       setStudents(studentsList);
     } catch (err) {
@@ -86,8 +86,8 @@ function App() {
       // Find the specific student we are updating safely
       const studentToUpdate = students.find(s => s.id === studentId);
       if (!studentToUpdate) {
-         console.warn("Student ID not found in current UI state.");
-         return; 
+        console.warn("Student ID not found in current UI state.");
+        return;
       }
 
       // Calculate newly updated metrics
@@ -102,35 +102,35 @@ function App() {
       // Optimistic UI Update so user gets instant visual feedback
       setStudents(prev => prev.map(s => {
         if (s.id === studentId) {
-           return {
-              ...s,
-              present: newPresent,
-              total: newTotal,
-              percentage: newPercentage
-           };
+          return {
+            ...s,
+            present: newPresent,
+            total: newTotal,
+            percentage: newPercentage
+          };
         }
         return s;
       }));
 
       // Firebase PATCH expects just the explicit fields you wish to mutate.
       const payload = {
-         presentCount: newPresent,
-         totalDays: newTotal
+        presentCount: newPresent,
+        totalDays: newTotal
       };
-      
+
       console.log("[DEBUG] Sending PATCH payload to Firebase:", payload);
-      
+
       // Grab Firebase Authentication JWT (in case Realtime DB rules require auth)
       let authParam = "";
       if (user) {
-         const authToken = await user.getIdToken();
-         authParam = `?auth=${authToken}`;
+        const authToken = await user.getIdToken();
+        authParam = `?auth=${authToken}`;
       }
 
       // Call Realtime Database REST API directly using PATCH method on exactly the student node
       const firebaseEndpoint = `https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/students/${studentId}.json${authParam}`;
       const response = await axios.patch(firebaseEndpoint, payload);
-      
+
       console.log("[DEBUG] Firebase PATCH Response Success:", response.data);
 
       // Reload fresh data globally after success to enforce synchronization
@@ -139,7 +139,7 @@ function App() {
     } catch (err) {
       console.error("[ERROR] FIREBASE UPDATE ERROR:", err.response || err);
       alert(`Failed to mark attendance. ${err.response?.status === 401 ? 'Permission Denied! Ensure Firebase Rules permit write operations.' : ''}`);
-      
+
       // Rollback optimistic frontend update by refetching genuine DB state
       fetchStudents();
     }
@@ -179,7 +179,7 @@ function App() {
                   <div key={s.id} className="student-row">
                     <div className="student-info">
                       <span className="student-name">{s.name}</span>
-                      <span 
+                      <span
                         className="student-badge"
                         style={{ backgroundColor: computeColor(s.percentage), color: '#fff' }}
                       >

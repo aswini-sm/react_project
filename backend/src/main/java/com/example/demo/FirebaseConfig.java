@@ -19,30 +19,33 @@ public class FirebaseConfig {
         try {
             // Check to prevent re-initialization if the context is reloaded
             if (FirebaseApp.getApps().isEmpty()) {
-                String firebaseEnv = System.getenv("FIREBASE_CREDENTIAL_JSON");
-                InputStream serviceAccount;
+                String json = System.getenv("FIREBASE_CREDENTIAL_JSON");
+                System.out.println("Firebase JSON loaded: " + (json != null));
                 
-                if (firebaseEnv != null && !firebaseEnv.trim().isEmpty()) {
-                    // Load from Render Environment Variable
-                    serviceAccount = new ByteArrayInputStream(firebaseEnv.getBytes(StandardCharsets.UTF_8));
-                    System.out.println("Loading Firebase credentials from FIREBASE_CREDENTIAL_JSON environment variable.");
-                } else {
-                    // Fallback to local file for local development
-                    serviceAccount = getClass().getResourceAsStream("/firebase/serviceAccountKey.json");
-                    if (serviceAccount == null) {
-                        throw new IllegalStateException("Missing Firebase credentials! " +
-                                "Set FIREBASE_CREDENTIAL_JSON env var or provide src/main/resources/firebase/serviceAccountKey.json");
-                    }
-                    System.out.println("Loading Firebase credentials from local serviceAccountKey.json");
+                if (json == null || json.trim().isEmpty()) {
+                    throw new IllegalArgumentException("FIREBASE_CREDENTIAL_JSON environment variable is missing or empty.");
                 }
 
+                System.out.println("Firebase JSON length: " + json.length());
+
+                // Fix common env issues:
+                // Remove extra quotes wrapping entire JSON
+                json = json.trim();
+                if (json.startsWith("\"") && json.endsWith("\"")) {
+                    json = json.substring(1, json.length() - 1);
+                }
+                
+                // Replace all line breaks in private_key with real newlines
+                json = json.replace("\\n", "\n");
+
+                InputStream serviceAccount = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
                 GoogleCredentials credentials = GoogleCredentials.fromStream(serviceAccount);
                 
                 FirebaseOptions.Builder optionsBuilder = FirebaseOptions.builder()
                         .setCredentials(credentials)
                         .setDatabaseUrl("https://twelvefirebase-default-rtdb.asia-southeast1.firebasedatabase.app/");
 
-                // 🔥 CRITICAL FIX: Explicitly set Project ID to prevent 502 Bad Gateway timeout hangs on Render
+                // Explicitly set Project ID to prevent 502 Bad Gateway timeout hangs on Render
                 if (credentials instanceof ServiceAccountCredentials) {
                     String projectId = ((ServiceAccountCredentials) credentials).getProjectId();
                     if (projectId != null) {
@@ -55,10 +58,9 @@ public class FirebaseConfig {
                 System.out.println("✅ Firebase Application has been initialized successfully!");
             }
         } catch (Exception e) {
-            System.err.println("🔥 Error initializing Firebase: " + e.getMessage());
-            // Optionally, we can rethrow as RuntimeException to guarantee the server stops 
-            // and fails health checks immediately instead of returning 500s later.
-            throw new RuntimeException("Failed to initialize Firebase", e);
+            System.err.println("🔥 Error initializing Firebase:");
+            e.printStackTrace();
+            throw new RuntimeException("Failed to initialize Firebase: " + e.getMessage(), e);
         }
     }
 }
