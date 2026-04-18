@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/students")
@@ -18,10 +19,10 @@ public class StudentController {
     }
 
     @PostMapping
-    public CompletableFuture<ResponseEntity<?>> addStudent(@RequestBody Student student) {
+    public CompletableFuture<ResponseEntity<String>> addStudent(@RequestBody Student student) {
         System.out.println("\n--- [DEBUG] POST /students RECEIVED ---");
-        return studentService.addStudent(student).thenApply(id -> 
-            (ResponseEntity<?>) ResponseEntity.ok("{\"message\": \"Student created\", \"id\": \"" + id + "\"}")
+        return studentService.addStudent(student).<ResponseEntity<String>>thenApply(id -> 
+            ResponseEntity.ok("{\"message\": \"Student created\", \"id\": \"" + id + "\"}")
         ).exceptionally(e -> {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -30,11 +31,11 @@ public class StudentController {
     }
 
     @GetMapping
-    public CompletableFuture<ResponseEntity<?>> getAll() {
+    public CompletableFuture<ResponseEntity<Object>> getAll() {
         System.out.println("\n--- [DEBUG] GET /students RECEIVED ---");
-        return studentService.getAllStudents().thenApply(students -> {
+        return studentService.getAllStudents().<ResponseEntity<Object>>thenApply(students -> {
             System.out.println("Students fetched: " + (students != null ? students.size() : 0));
-            return (ResponseEntity<?>) ResponseEntity.ok(students != null ? students : java.util.Collections.emptyList());
+            return ResponseEntity.ok(students != null ? students : java.util.Collections.emptyList());
         }).exceptionally(e -> {
             System.err.println("Error fetching students: " + e.getMessage());
             e.printStackTrace();
@@ -43,10 +44,11 @@ public class StudentController {
     }
 
     @PutMapping("/{id}/attendance")
-    public CompletableFuture<ResponseEntity<?>> markAttendance(@PathVariable String id, @RequestParam("type") String type) {
+    public CompletableFuture<ResponseEntity<Object>> markAttendance(@PathVariable String id, @RequestParam("type") String type) {
         System.out.println("\n--- [DEBUG] PUT /students/" + id + "/attendance?type=" + type + " RECEIVED ---");
-        return studentService.markAttendance(id, type).thenApply(updatedStudent -> 
-            (ResponseEntity<?>) ResponseEntity.ok(updatedStudent)
+        System.out.println("[DEBUG] Payload received -> ID: " + id + ", Type: " + type);
+        return studentService.markAttendance(id, type).<ResponseEntity<Object>>thenApply(updatedStudent -> 
+            ResponseEntity.ok(updatedStudent)
         ).exceptionally(e -> {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

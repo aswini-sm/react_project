@@ -106,8 +106,10 @@ public class StudentService {
                         
                         studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
                             if (databaseError != null) {
+                                System.err.println("[SERVICE DEBUG] Firebase update failed for ID: " + id + " - Error: " + databaseError.getMessage());
                                 future.completeExceptionally(databaseError.toException());
                             } else {
+                                System.out.println("[SERVICE DEBUG] Firebase update SUCCESS for ID: " + id);
                                 future.complete(student);
                             }
                         });
