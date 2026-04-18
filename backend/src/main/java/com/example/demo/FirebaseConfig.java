@@ -50,6 +50,8 @@ public class FirebaseConfig {
                 
                 // If BOTH env variable and file are missing -> throw explicit error
                 if (serviceAccount == null) {
+                    System.err.println("🔥 CRITICAL ERROR: Firebase credentials NOT FOUND!");
+                    System.err.println("Make sure FIREBASE_CREDENTIAL_JSON environment variable is set on Render.");
                     throw new RuntimeException("Firebase credentials not found in ENV or resources");
                 }
 

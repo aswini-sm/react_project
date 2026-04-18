@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class StudentService {
@@ -18,18 +20,20 @@ public class StudentService {
         return FirebaseDatabase.getInstance().getReference("students");
     }
 
-    public CompletableFuture<List<java.util.Map<String, Object>>> getAllStudents() {
-        System.out.println("Fetching students...");
-        CompletableFuture<List<java.util.Map<String, Object>>> future = new CompletableFuture<>();
+    public List<java.util.Map<String, Object>> getAllStudents() {
+        System.out.println("Fetching students synchronously from Firebase...");
+        AtomicReference<List<java.util.Map<String, Object>>> ref = new AtomicReference<>(new ArrayList<>());
+        CountDownLatch latch = new CountDownLatch(1);
+        
         try {
             getStudentsRef().addListenerForSingleValueEvent(new ValueEventListener() {
                 @Override
                 public void onDataChange(DataSnapshot dataSnapshot) {
                     try {
                         List<java.util.Map<String, Object>> list = new ArrayList<>();
-                        System.out.println("[DEBUG] Firebase Snapshot received.");
-                        System.out.println("[DEBUG] Snapshot value: " + (dataSnapshot != null ? dataSnapshot.getValue() : "null"));
+                        System.out.println("[DEBUG] Firebase Snapshot received. exists()=" + (dataSnapshot != null ? dataSnapshot.exists() : false));
                         System.out.println("[DEBUG] Number of children: " + (dataSnapshot != null ? dataSnapshot.getChildrenCount() : 0));
+                        System.out.println("[DEBUG] Raw Firebase Snapshot value: " + (dataSnapshot != null ? dataSnapshot.getValue() : "null"));
 
                         if (dataSnapshot != null && dataSnapshot.exists()) {
                             for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
@@ -45,45 +49,67 @@ public class StudentService {
                                 list.add(studentMap);
                             }
                         }
-                        future.complete(list);
+                        ref.set(list);
                     } catch (Exception e) {
                         System.err.println("Error mapping students: " + e.getMessage());
-                        future.complete(new ArrayList<>()); // Fallback to empty
+                    } finally {
+                        latch.countDown();
                     }
                 }
 
                 @Override
                 public void onCancelled(DatabaseError databaseError) {
                     System.err.println("Database error: " + databaseError.getMessage());
-                    future.complete(new ArrayList<>()); // Fallback empty, never hang
+                    latch.countDown();
                 }
             });
+            
+            boolean completed = latch.await(15, java.util.concurrent.TimeUnit.SECONDS);
+            if (!completed) {
+                System.err.println("Firebase get operation timed out after 15 seconds.");
+            }
         } catch (Exception e) {
-            future.complete(new ArrayList<>()); // Complete immediately if initial call fails
+            System.err.println("Firebase fetch failed: " + e.getMessage());
+            Thread.currentThread().interrupt();
         }
-        return future;
+        return ref.get();
     }
 
-    public CompletableFuture<String> addStudent(Student newStudent) {
-        CompletableFuture<String> future = new CompletableFuture<>();
+    public String addStudent(Student newStudent) {
         String id = java.util.UUID.randomUUID().toString();
         newStudent.setId(id);
         newStudent.setPresentCount(0);
         newStudent.setTotalDays(0);
 
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> errorRef = new AtomicReference<>(null);
+
         DatabaseReference studentRef = getStudentsRef().child(id);
         studentRef.setValue(newStudent, (databaseError, databaseReference) -> {
             if (databaseError != null) {
-                future.completeExceptionally(databaseError.toException());
-            } else {
-                future.complete(id);
+                errorRef.set(databaseError.getMessage());
             }
+            latch.countDown();
         });
-        return future;
+        
+        try {
+            latch.await(15, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Add student timed out");
+        }
+        
+        if (errorRef.get() != null) {
+            throw new RuntimeException(errorRef.get());
+        }
+        return id;
     }
 
-    public CompletableFuture<java.util.Map<String, Object>> markAttendance(String id, String type) {
-        CompletableFuture<java.util.Map<String, Object>> future = new CompletableFuture<>();
+    public java.util.Map<String, Object> markAttendance(String id, String type) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<java.util.Map<String, Object>> resultRef = new AtomicReference<>(null);
+        AtomicReference<String> errorRef = new AtomicReference<>(null);
+        
         DatabaseReference studentRef = getStudentsRef().child(id);
         
         studentRef.addListenerForSingleValueEvent(new ValueEventListener() {
@@ -113,11 +139,11 @@ public class StudentService {
                         newPresentCount += 1;
                         updates.put("presentCount", newPresentCount);
                     } else if (!"absent".equalsIgnoreCase(type)) {
-                        future.completeExceptionally(new IllegalArgumentException("Invalid attendance type"));
+                        errorRef.set("Invalid attendance type");
+                        latch.countDown();
                         return;
                     }
 
-                    // Return map with updated values
                     java.util.Map<String, Object> updatedStudent = new java.util.HashMap<>();
                     updatedStudent.put("id", dataSnapshot.getKey());
                     updatedStudent.put("name", dataSnapshot.child("name").getValue());
@@ -127,21 +153,39 @@ public class StudentService {
                     
                     studentRef.updateChildren(updates, (databaseError, databaseReference) -> {
                         if (databaseError != null) {
-                            future.completeExceptionally(databaseError.toException());
+                            errorRef.set(databaseError.getMessage());
                         } else {
-                            future.complete(updatedStudent);
+                            resultRef.set(updatedStudent);
                         }
+                        latch.countDown();
                     });
                 } else {
-                    future.completeExceptionally(new RuntimeException("Student not found"));
+                    errorRef.set("Student not found");
+                    latch.countDown();
                 }
             }
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-                future.completeExceptionally(databaseError.toException());
+                errorRef.set(databaseError.getMessage());
+                latch.countDown();
             }
         });
-        return future;
+        
+        try {
+            boolean done = latch.await(15, java.util.concurrent.TimeUnit.SECONDS);
+            if (!done) {
+                throw new RuntimeException("Firebase markAttendance timed out");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Thread interrupted");
+        }
+        
+        if (errorRef.get() != null) {
+            throw new RuntimeException(errorRef.get());
+        }
+        
+        return resultRef.get();
     }
 }
