@@ -23,6 +23,7 @@ function App() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAge, setNewAge] = useState("");
 
@@ -75,9 +76,10 @@ function App() {
 
   const addStudent = async (e) => {
     e.preventDefault();
-    if (!newName.trim() || !newAge) return;
+    if (!newName.trim() || !newAge || isSubmitting) return;
 
     try {
+      setIsSubmitting(true);
       await axios.post(`${API}/students`, {
         name: newName,
         age: parseInt(newAge, 10)
@@ -87,6 +89,8 @@ function App() {
       fetchStudents();
     } catch (error) {
       console.error("API ERROR:", error.response || error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -145,7 +149,9 @@ function App() {
                 onChange={e => setNewAge(e.target.value)}
                 required
               />
-              <button type="submit" className="btn-present">Add Student</button>
+              <button type="submit" className="btn-present" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add Student"}
+              </button>
             </form>
           </div>
 
